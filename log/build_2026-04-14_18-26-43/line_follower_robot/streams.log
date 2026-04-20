@@ -1,0 +1,43 @@
+[0.874s] Invoking command in '/home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot': PYTHONPATH=/home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/line_follower_robot build --build-base /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build install --record /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/install.log --single-version-externally-managed install_data
+[1.192s] running egg_info
+[1.193s] creating build/line_follower_robot/line_follower_robot.egg-info
+[1.194s] writing build/line_follower_robot/line_follower_robot.egg-info/PKG-INFO
+[1.194s] writing dependency_links to build/line_follower_robot/line_follower_robot.egg-info/dependency_links.txt
+[1.194s] writing entry points to build/line_follower_robot/line_follower_robot.egg-info/entry_points.txt
+[1.194s] writing requirements to build/line_follower_robot/line_follower_robot.egg-info/requires.txt
+[1.195s] writing top-level names to build/line_follower_robot/line_follower_robot.egg-info/top_level.txt
+[1.195s] writing manifest file 'build/line_follower_robot/line_follower_robot.egg-info/SOURCES.txt'
+[1.197s] reading manifest file 'build/line_follower_robot/line_follower_robot.egg-info/SOURCES.txt'
+[1.198s] writing manifest file 'build/line_follower_robot/line_follower_robot.egg-info/SOURCES.txt'
+[1.198s] running build
+[1.198s] running build_py
+[1.199s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build
+[1.199s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build/lib
+[1.199s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build/lib/line_follower_robot
+[1.199s] copying line_follower_robot/line_follower_node.py -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build/lib/line_follower_robot
+[1.199s] copying line_follower_robot/__init__.py -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build/lib/line_follower_robot
+[1.199s] running install
+[1.200s] running install_lib
+[1.201s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages/line_follower_robot
+[1.201s] copying /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build/lib/line_follower_robot/line_follower_node.py -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages/line_follower_robot
+[1.201s] copying /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build/lib/line_follower_robot/__init__.py -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages/line_follower_robot
+[1.202s] byte-compiling /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages/line_follower_robot/line_follower_node.py to line_follower_node.cpython-310.pyc
+[1.204s] byte-compiling /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages/line_follower_robot/__init__.py to __init__.cpython-310.pyc
+[1.204s] running install_data
+[1.204s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/ament_index
+[1.205s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/ament_index/resource_index
+[1.205s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/ament_index/resource_index/packages
+[1.205s] copying resource/line_follower_robot -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/ament_index/resource_index/packages
+[1.205s] copying package.xml -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/line_follower_robot
+[1.205s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/line_follower_robot/launch
+[1.205s] copying launch/sim.launch.py -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/line_follower_robot/launch
+[1.205s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/line_follower_robot/worlds
+[1.205s] copying worlds/line_world.world -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/line_follower_robot/worlds
+[1.205s] creating /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/line_follower_robot/urdf
+[1.206s] copying urdf/robot.urdf.xacro -> /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/share/line_follower_robot/urdf
+[1.206s] running install_egg_info
+[1.207s] Copying build/line_follower_robot/line_follower_robot.egg-info to /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages/line_follower_robot-0.1.0-py3.10.egg-info
+[1.208s] running install_scripts
+[1.237s] Installing line_follower_node script to /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/line_follower_robot
+[1.237s] writing list of installed files to '/home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/install.log'
+[1.272s] Invoked command in '/home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot' returned '0': PYTHONPATH=/home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/install/line_follower_robot/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/line_follower_robot build --build-base /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/build install --record /home/ronith/ros2_ws/src/line_follower_robot_fixed 4/line_follower_robot_fixed/line_follower_robot/build/line_follower_robot/install.log --single-version-externally-managed install_data

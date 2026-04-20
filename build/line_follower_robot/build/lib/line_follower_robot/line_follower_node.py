@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""
+Line Following Robot with Broken Line Detection and Obstacle Avoidance.
+State machine:
+  FOLLOWING  -> SEARCHING (line lost) | AVOIDING (obstacle close)
+  SEARCHING  -> FOLLOWING (line found again)
+  AVOIDING   -> FOLLOWING (obstacle cleared, line found)
+
+FIX 4: Increased KP gain and added a timer-based fallback publisher so the
+        robot doesn't stall if image frames are delayed at startup.
+"""
+
+import rclpy
+from rclpy.node import Node
+import cv2
+import numpy as np
+from enum import Enum, auto
+
+from sensor_msgs.msg import Image, LaserScan
+from geometry_msgs.msg import Twist
+from cv_bridge import CvBridge
+
+
+class State(Enum):
+    FOLLOWING = auto()
+    SEARCHING = auto()
+    AVOIDING  = auto()
+
+
+class LineFollowerNode(Node):
+
+    # --- tuneable constants ---
+    LINE_THRESHOLD    = 60      # Back to 60 for better detection in darker areas
+    ROI_TOP_FRAC      = 0.5     # Increased ROI to see further ahead
+    SEARCH_SPEED      = 0.5     # rad/s rotation while searching
+    FOLLOW_SPEED      = 0.2     # m/s forward speed while following
+    OBSTACLE_DIST     = 0.8     # metres — trigger avoidance below this
+    AVOID_CLEAR_DIST  = 1.0     # metres — consider obstacle cleared above this
+    SEARCH_FORWARD_STEPS = 60   # steps (at 10Hz) to move forward when line is lost
+    MAX_SEARCH_ITERS  = 60      # frames before trying the other direction
+    # FIX 4: KP adjusted for stability
+    KP                = 0.010
+
+    def __init__(self):
+        super().__init__('line_follower_node')
+        self.bridge = CvBridge()
+        self.state  = State.FOLLOWING
+
+        # Search direction and iteration counter
+        self._search_dir   = 1     # +1 or -1
+        self._search_count = 0
+        self._last_error   = 0
+
+        # Obstacle avoidance state
+        self._obs_phase       = 'turn_left'
+        self._obs_step_count  = 0
+        self._following_grace = 0  # grace-period frames after re-entering FOLLOWING from avoidance
+
+        # Publishers / subscribers
+        self.cmd_pub = self.create_publisher(Twist, 'cmd_vel', 10)
+
+        self.create_subscription(Image,     '/camera/image_raw', self.image_callback,  10)
+        self.create_subscription(LaserScan, 'scan',              self.scan_callback,   10)
+
+        self._min_front_dist = float('inf')
+        self._image_received = False
+        self._error = 0
+        self._line_found = False
+        self._just_avoided = False  # To skip forward search if line is lost after avoidance
+
+        # FIX: Main control loop timer (10 Hz)
+        # This ensures the robot starts moving automatically and keeps moving 
+        # even if camera frames are delayed.
+        self.timer = self.create_timer(0.1, self.control_loop)
+        self._last_image_time = self.get_clock().now()
+
+        self.get_logger().info('Line follower node started (Autonomous Mode).')
+
+    def control_loop(self):
+        """Main control loop that executes every 100ms."""
+        # Decrement the grace-period counter each tick.  It is set when avoidance
+        # hands control back to FOLLOWING so a brief absence of line detections
+        # does not immediately kick us into SEARCHING again.
+        if self._following_grace > 0:
+            self._following_grace -= 1
+
+        # --- state transitions ---
+        if self.state in [State.FOLLOWING, State.SEARCHING]:
+            if self._min_front_dist < self.OBSTACLE_DIST:
+                self.get_logger().info(f'Obstacle detected at {self._min_front_dist:.2f}m — switching to AVOIDING')
+                self.state = State.AVOIDING
+                self._obs_phase = 'stop_and_back'
+                self._obs_step_count = 0
+                self._just_avoided = True
+            elif self.state == State.FOLLOWING and not self._line_found and self._following_grace == 0:
+                # Only declare "line lost" once the post-avoidance grace period has elapsed.
+                self.get_logger().info('Line lost — switching to SEARCHING')
+                self.state = State.SEARCHING
+                self._search_count = 0
+            elif self.state == State.SEARCHING and self._line_found:
+                self.get_logger().info('Line reacquired — switching to FOLLOWING')
+                self.state = State.FOLLOWING
+                self._just_avoided = False
+        elif self.state == State.AVOIDING:
+            pass   # transitions handled inside _avoid_step()
+
+        # --- execute state behaviour ---
+        # Note: If no image is received yet, _line_found is False, 
+        # so it will be in SEARCHING state (Phase 1: move forward).
+        if self.state == State.FOLLOWING:
+            self._follow_step(self._error)
+        elif self.state == State.SEARCHING:
+            self._search_step()
+        elif self.state == State.AVOIDING:
+            self._avoid_step(self._line_found)
+
+    # ------------------------------------------------------------------
+    # Sensor callbacks
+    # ------------------------------------------------------------------
+
+    def scan_callback(self, msg: LaserScan):
+        """Extract minimum distance in a ±90° frontal cone."""
+        ranges = np.array(msg.ranges)
+        ranges = np.where(np.isfinite(ranges), ranges, float('inf'))
+        n = len(ranges)
+        
+        # In Gazebo, lidar with -pi to pi range has 0 rad at index n/2
+        # We look at the front 180 degrees (from -90 to +90)
+        start = n // 4
+        end = 3 * n // 4
+        front = ranges[start : end]
+        
+        if front.size > 0:
+            self._min_front_dist = float(np.min(front))
+        else:
+            self._min_front_dist = float('inf')
+
+    def image_callback(self, msg: Image):
+        if not self._image_received:
+            self.get_logger().info('First camera frame received — starting autonomous movement.')
+            self._image_received = True
+
+        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        self._error, self._line_found = self._detect_line(frame)
+        self._last_image_time = self.get_clock().now()
+
+    # ------------------------------------------------------------------
+    # Vision
+    # ------------------------------------------------------------------
+
+    def _detect_line(self, frame):
+        """
+        Returns (error_pixels, line_found).
+        error_pixels = centroid_x - image_centre_x  (negative = line left of centre).
+        """
+        h, w = frame.shape[:2]
+        roi = frame[int(h * self.ROI_TOP_FRAC):, :]   # bottom portion
+
+        gray  = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        _, bw = cv2.threshold(gray, self.LINE_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
+
+        # morphological cleanup
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, kernel)
+
+        M = cv2.moments(bw)
+        if M['m00'] < 500:          # not enough white pixels — line absent
+            return self._last_error, False
+
+        cx = int(M['m10'] / M['m00'])
+        error = cx - w // 2
+        self._last_error = error
+        return error, True
+
+    # ------------------------------------------------------------------
+    # State behaviours
+    # ------------------------------------------------------------------
+
+    def _follow_step(self, error: float):
+        twist = Twist()
+        twist.linear.x  = self.FOLLOW_SPEED
+        twist.angular.z = -float(error) * self.KP
+        twist.angular.z = max(-1.0, min(1.0, twist.angular.z))
+        self.cmd_pub.publish(twist)
+
+    def _search_step(self):
+        """
+        1. Move forward for SEARCH_FORWARD_STEPS to bridge broken lines.
+        2. Rotate in place to find where the line continues.
+        After MAX_SEARCH_ITERS frames, reverse search direction.
+        """
+        self._search_count += 1
+        twist = Twist()
+
+        # If we just avoided an obstacle, skip the forward movement and rotate to find the line
+        if self._just_avoided:
+            self._search_count = self.SEARCH_FORWARD_STEPS + 1
+            self._just_avoided = False  # Reset so it doesn't stay in rotation forever
+
+        if self._search_count < self.SEARCH_FORWARD_STEPS:
+            # Phase 1: Keep moving forward (bridging broken lines)
+            twist.linear.x = self.FOLLOW_SPEED
+            twist.angular.z = 0.0
+        else:
+            # Phase 2: Rotate in place
+            iters_since_forward = self._search_count - self.SEARCH_FORWARD_STEPS
+            if iters_since_forward > self.MAX_SEARCH_ITERS:
+                self._search_dir = -self._search_dir
+                # Reset counter so it rotates in the other direction for MAX_SEARCH_ITERS
+                self._search_count = self.SEARCH_FORWARD_STEPS + 1
+
+            twist.linear.x = 0.0
+            twist.angular.z = self._search_dir * self.SEARCH_SPEED
+
+        self.cmd_pub.publish(twist)
+
+    def _avoid_step(self, line_found: bool):
+        """
+        Square-box obstacle bypass:
+          0. stop_and_back — stop and back up slightly to ensure turn clearance
+          1. turn_left_90  — rotate ~90° left
+          2. move_sideways — drive forward to clear obstacle width
+          3. turn_right_90 — rotate ~90° right (now parallel to line)
+          4. bypass_box    — drive forward to pass obstacle length
+          5. turn_right_90 — rotate ~90° right (pointing back to line)
+          6. reacquire     — drive forward until line is found
+        """
+        twist = Twist()
+        self._obs_step_count += 1
+
+        # At 10 Hz, 0.8 rad/s: 20 steps is exactly ~90 degrees (1.6 rad)
+        TURN_90_STEPS  = 20   
+        SIDEWAYS_STEPS = 50   # ~1.0 m
+        BYPASS_STEPS   = 110  # Reduced to hit the line segment earlier (x ~ 3.7)
+        BACKUP_STEPS   = 20   # ~0.3 m
+
+        if self._obs_phase == 'stop_and_back':
+            twist.linear.x = -0.15
+            if self._obs_step_count == 1: self.get_logger().info('Avoidance Phase: stop_and_back')
+            if self._obs_step_count >= BACKUP_STEPS:
+                self._obs_phase = 'turn_left'
+                self._obs_step_count = 0
+
+        elif self._obs_phase == 'turn_left':
+            twist.angular.z = 0.8
+            if self._obs_step_count == 1: self.get_logger().info('Avoidance Phase: turn_left_90')
+            if self._obs_step_count >= TURN_90_STEPS:
+                self._obs_phase = 'move_sideways'
+                self._obs_step_count = 0
+
+        elif self._obs_phase == 'move_sideways':
+            twist.linear.x = 0.2
+            if self._obs_step_count == 1: self.get_logger().info('Avoidance Phase: move_sideways')
+            if self._obs_step_count >= SIDEWAYS_STEPS:
+                self._obs_phase = 'turn_right_1'
+                self._obs_step_count = 0
+
+        elif self._obs_phase == 'turn_right_1':
+            twist.angular.z = -0.8
+            if self._obs_step_count == 1: self.get_logger().info('Avoidance Phase: turn_right_parallel')
+            if self._obs_step_count >= TURN_90_STEPS:
+                self._obs_phase = 'bypass_box'
+                self._obs_step_count = 0
+
+        elif self._obs_phase == 'bypass_box':
+            twist.linear.x = 0.2
+            if self._obs_step_count == 1: self.get_logger().info('Avoidance Phase: bypass_box')
+            if self._obs_step_count >= BYPASS_STEPS:
+                self._obs_phase = 'turn_right_2'
+                self._obs_step_count = 0
+
+        elif self._obs_phase == 'turn_right_2':
+            # Turn right 90 degrees to point back towards the line (+y direction)
+            twist.angular.z = -0.8
+            if self._obs_step_count == 1: self.get_logger().info('Avoidance Phase: turn_right_back_towards_line')
+            if self._obs_step_count >= TURN_90_STEPS:
+                self._obs_phase = 'reacquire'
+                self._obs_step_count = 0
+
+        elif self._obs_phase == 'reacquire':
+            # Move straight until the line is seen by the camera.
+            twist.linear.x = 0.15
+            twist.angular.z = 0.0
+            if self._obs_step_count == 1:
+                self.get_logger().info('Avoidance Phase: reacquire_line (moving straight)')
+
+            # Timeout safety — check BEFORE the line_found transition so the
+            # counter never keeps running after we already transitioned.
+            if self._obs_step_count > 120:  # ~12 seconds
+                self.get_logger().warn('Reacquire timed out — switching to SEARCHING')
+                self.state = State.SEARCHING
+                self._search_count = 0
+            elif line_found:
+                self.get_logger().info('Line found — starting aligning turn...')
+                self._obs_phase = 'aligning'
+                self._obs_step_count = 0
+
+        elif self._obs_phase == 'aligning':
+            # Steer onto the line using the camera error (proportional control).
+            # Keep a small forward speed so the robot doesn't pivot on the spot
+            # and lose the line; the error-based angular correction will centre it.
+            twist.linear.x = 0.05
+            # Use the same proportional gain as _follow_step but clamped tighter.
+            steer = -float(self._error) * self.KP * 4.0   # boosted for quicker alignment
+            twist.angular.z = max(-0.6, min(0.6, steer))
+            if self._obs_step_count == 1:
+                self.get_logger().info('Avoidance Phase: aligning (error-based steering)')
+
+            # Transition to FOLLOWING once the line is centred OR the timeout hits.
+            centred = line_found and abs(self._error) < 20
+            timed_out = self._obs_step_count >= TURN_90_STEPS * 3
+            if centred or timed_out:
+                self.get_logger().info('Aligned — resuming FOLLOWING')
+                self.state = State.FOLLOWING
+                self._just_avoided = False
+                # Grace period: allow up to 15 frames before "line lost" is declared.
+                # This prevents the FOLLOWING→SEARCHING flip that used to swallow
+                # the robot's momentum right after it rejoins the line.
+                self._following_grace = 15
+
+        self.cmd_pub.publish(twist)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = LineFollowerNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.cmd_pub.publish(Twist())   # stop robot
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

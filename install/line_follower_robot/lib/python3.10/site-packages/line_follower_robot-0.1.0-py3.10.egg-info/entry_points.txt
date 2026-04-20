@@ -1,0 +1,3 @@
+[console_scripts]
+line_follower_node = line_follower_robot.line_follower_node:main
+
